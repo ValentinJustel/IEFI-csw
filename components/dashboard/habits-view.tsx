@@ -1,11 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -26,7 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Flame, Clock, Target, TrendingUp, MoreVertical, Pencil, Trash2, FolderPlus, Check, X, Palette } from "lucide-react"
+import {
+  Plus, Clock, Target, TrendingUp, MoreVertical,
+  Pencil, Trash2, FolderPlus, Check, X, Loader2
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,18 +39,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
+// ─── Tipos ───────────────────────────────────────────────────────────────────
+
 interface Habit {
-  id: number
+  id: string
   name: string
-  description: string
-  icon: string
-  streak: number
-  time: string
-  completed: boolean
-  category: string
+  description?: string | null
+  icon?: string | null
+  color: string
   frequency: string
-  progress: number
-  goal?: string
+  isActive: boolean
+  createdAt: string
+  completedToday: boolean
+  tracking: { id: string; completedAt: string }[]
 }
 
 interface Category {
@@ -58,40 +61,31 @@ interface Category {
   icon: string
 }
 
-const defaultHabits: Habit[] = [
-  { id: 1, name: "Meditar", description: "Sesión de meditación guiada", icon: "🧘", streak: 15, time: "07:00", completed: true, category: "Bienestar", frequency: "Diario", progress: 100 },
-  { id: 2, name: "Ejercicio", description: "Rutina de ejercicios matutina", icon: "💪", streak: 8, time: "08:00", completed: true, category: "Salud", frequency: "Diario", progress: 85 },
-  { id: 3, name: "Leer 30 min", description: "Lectura de desarrollo personal", icon: "📚", streak: 22, time: "21:00", completed: false, category: "Desarrollo", frequency: "Diario", progress: 92 },
-  { id: 4, name: "Beber 2L agua", description: "Mantener hidratación", icon: "💧", streak: 30, time: "Todo el día", completed: false, category: "Salud", frequency: "Diario", progress: 100 },
-]
+// ─── Constantes ──────────────────────────────────────────────────────────────
 
-const defaultCategories: Category[] = [
-  { id: "salud", name: "Salud", color: "#22c55e", icon: "💚" },
-  { id: "bienestar", name: "Bienestar", color: "#8b5cf6", icon: "💜" },
-  { id: "desarrollo", name: "Desarrollo", color: "#f59e0b", icon: "📖" },
-  { id: "productividad", name: "Productividad", color: "#3b82f6", icon: "⚡" },
-]
-
-const iconOptions = ["🧘", "💪", "📚", "💧", "✍️", "🌍", "🧘‍♀️", "🥗", "🎯", "⏰", "🌙", "☀️", "🏃", "🎨", "🎵", "💻", "📝", "🌿", "❤️", "🧠"]
+const iconOptions = ["🧘", "💪", "📚", "💧", "✍️", "🌍", "🥗", "🎯", "⏰", "🌙", "☀️", "🏃", "🎨", "🎵", "💻", "📝", "🌿", "❤️", "🧠", "🔥"]
 const colorOptions = ["#22c55e", "#8b5cf6", "#f59e0b", "#3b82f6", "#ef4444", "#ec4899", "#14b8a6", "#f97316"]
 
+// ─── Componente ──────────────────────────────────────────────────────────────
+
 export function HabitsView() {
-  const [habits, setHabits] = useState<Habit[]>(defaultHabits)
-  const [categories, setCategories] = useState<Category[]>(defaultCategories)
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState("Todos")
   const [isCreateHabitOpen, setIsCreateHabitOpen] = useState(false)
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false)
   const [isEditHabitOpen, setIsEditHabitOpen] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
-  
+  const [saving, setSaving] = useState(false)
+
   const [newHabit, setNewHabit] = useState({
     name: "",
     description: "",
     icon: "🎯",
+    color: "#6366f1",
     category: "",
-    frequency: "",
-    time: "",
-    goal: "",
+    frequency: "daily",
   })
 
   const [newCategory, setNewCategory] = useState({
@@ -100,103 +94,184 @@ export function HabitsView() {
     icon: "📁",
   })
 
-  const filteredHabits = selectedCategory === "Todos"
-    ? habits
-    : habits.filter(h => h.category === selectedCategory)
+  // ─── Fetch ────────────────────────────────────────────────────────────────
+
+  async function fetchHabits() {
+    try {
+      const res = await fetch("/api/habits")
+      if (!res.ok) throw new Error("Error al cargar hábitos")
+      const data = await res.json()
+      setHabits(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchCategories() {
+    try {
+      const res = await fetch("/api/categories")
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setCategories(data)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  useEffect(() => {
+    fetchHabits()
+    fetchCategories()
+  }, [])
+
+  // ─── Crear hábito ─────────────────────────────────────────────────────────
+
+  async function handleCreateHabit() {
+    if (!newHabit.name) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/habits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newHabit.name,
+          description: newHabit.description || null,
+          icon: newHabit.icon,
+          color: newHabit.color,
+          frequency: newHabit.frequency,
+        }),
+      })
+      if (!res.ok) throw new Error("Error al crear hábito")
+      const created = await res.json()
+      setHabits([...habits, { ...created, completedToday: false, tracking: [] }])
+      setNewHabit({ name: "", description: "", icon: "🎯", color: "#6366f1", category: "", frequency: "daily" })
+      setIsCreateHabitOpen(false)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ─── Marcar/desmarcar completado ─────────────────────────────────────────
+
+  async function handleToggleComplete(habit: Habit) {
+    const method = habit.completedToday ? "DELETE" : "POST"
+    setHabits(habits.map(h =>
+      h.id === habit.id ? { ...h, completedToday: !h.completedToday } : h
+    ))
+    try {
+      const res = await fetch(`/api/habits/${habit.id}/complete`, { method })
+      if (!res.ok) throw new Error()
+    } catch {
+      setHabits(habits.map(h =>
+        h.id === habit.id ? { ...h, completedToday: habit.completedToday } : h
+      ))
+    }
+  }
+
+  // ─── Editar hábito ────────────────────────────────────────────────────────
+
+  async function handleSaveEdit() {
+    if (!editingHabit) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/habits/${editingHabit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingHabit.name,
+          description: editingHabit.description,
+          icon: editingHabit.icon,
+          color: editingHabit.color,
+          frequency: editingHabit.frequency,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      const updated = await res.json()
+      setHabits(habits.map(h => h.id === updated.id ? { ...h, ...updated } : h))
+      setIsEditHabitOpen(false)
+      setEditingHabit(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ─── Eliminar hábito ──────────────────────────────────────────────────────
+
+  async function handleDeleteHabit(id: string) {
+    setHabits(habits.filter(h => h.id !== id))
+    try {
+      await fetch(`/api/habits/${id}`, { method: "DELETE" })
+    } catch (err) {
+      console.error(err)
+      fetchHabits()
+    }
+  }
+
+  // ─── Categorías ───────────────────────────────────────────────────────────
+
+  async function handleCreateCategory() {
+    if (!newCategory.name) return
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCategory),
+      })
+      if (!res.ok) throw new Error()
+      const created = await res.json()
+      setCategories([...categories, created])
+      setNewCategory({ name: "", color: "#3b82f6", icon: "📁" })
+      setIsCreateCategoryOpen(false)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleDeleteCategory(categoryId: string) {
+    const cat = categories.find(c => c.id === categoryId)
+    if (!cat) return
+    setCategories(categories.filter(c => c.id !== categoryId))
+    try {
+      await fetch("/api/categories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: categoryId }),
+      })
+    } catch (err) {
+      console.error(err)
+      fetchCategories()
+    }
+    if (selectedCategory === cat.name) setSelectedCategory("Todos")
+  }
+
+  // ─── Stats ────────────────────────────────────────────────────────────────
 
   const totalHabits = habits.length
-  const completedToday = habits.filter(h => h.completed).length
-  const averageStreak = totalHabits > 0 ? Math.round(habits.reduce((acc, h) => acc + h.streak, 0) / totalHabits) : 0
-  const successRate = totalHabits > 0 ? Math.round(habits.reduce((acc, h) => acc + h.progress, 0) / totalHabits) : 0
+  const completedToday = habits.filter(h => h.completedToday).length
+  const successRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
 
-  const handleCreateHabit = () => {
-    if (!newHabit.name || !newHabit.category) return
-    
-    const habit: Habit = {
-      id: Date.now(),
-      name: newHabit.name,
-      description: newHabit.description,
-      icon: newHabit.icon,
-      category: newHabit.category,
-      frequency: newHabit.frequency || "Diario",
-      time: newHabit.time || "09:00",
-      streak: 0,
-      completed: false,
-      progress: 0,
-      goal: newHabit.goal,
-    }
-    
-    setHabits([...habits, habit])
-    setNewHabit({ name: "", description: "", icon: "🎯", category: "", frequency: "", time: "", goal: "" })
-    setIsCreateHabitOpen(false)
-  }
+  // ─── Render ───────────────────────────────────────────────────────────────
 
-  const handleCreateCategory = () => {
-    if (!newCategory.name) return
-    
-    const category: Category = {
-      id: newCategory.name.toLowerCase().replace(/\s+/g, "-"),
-      name: newCategory.name,
-      color: newCategory.color,
-      icon: newCategory.icon,
-    }
-    
-    setCategories([...categories, category])
-    setNewCategory({ name: "", color: "#3b82f6", icon: "📁" })
-    setIsCreateCategoryOpen(false)
-  }
-
-  const handleDeleteHabit = (id: number) => {
-    setHabits(habits.filter(h => h.id !== id))
-  }
-
-  const handleToggleComplete = (id: number) => {
-    setHabits(habits.map(h => 
-      h.id === id 
-        ? { ...h, completed: !h.completed, streak: !h.completed ? h.streak + 1 : h.streak - 1 }
-        : h
-    ))
-  }
-
-  const handleEditHabit = (habit: Habit) => {
-    setEditingHabit(habit)
-    setIsEditHabitOpen(true)
-  }
-
-  const handleSaveEdit = () => {
-    if (!editingHabit) return
-    setHabits(habits.map(h => h.id === editingHabit.id ? editingHabit : h))
-    setEditingHabit(null)
-    setIsEditHabitOpen(false)
-  }
-
-  const handleDeleteCategory = (categoryId: string) => {
-    const categoryToDelete = categories.find(c => c.id === categoryId)
-    if (!categoryToDelete) return
-    
-    setCategories(categories.filter(c => c.id !== categoryId))
-    setHabits(habits.map(h => 
-      h.category === categoryToDelete.name ? { ...h, category: "Sin categoría" } : h
-    ))
-    if (selectedCategory === categoryToDelete.name) {
-      setSelectedCategory("Todos")
-    }
-  }
-
-  const getCategoryColor = (categoryName: string) => {
-    const category = categories.find(c => c.name === categoryName)
-    return category?.color || "#6b7280"
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
       {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Hábitos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Hábitos</CardTitle>
             <Target className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -205,9 +280,7 @@ export function HabitsView() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Completados Hoy
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completados Hoy</CardTitle>
             <Clock className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -216,20 +289,7 @@ export function HabitsView() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Racha Promedio
-            </CardTitle>
-            <Flame className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{averageStreak} días</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tasa de Éxito
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Éxito Hoy</CardTitle>
             <TrendingUp className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -238,13 +298,13 @@ export function HabitsView() {
         </Card>
       </div>
 
-      {/* Categories Management */}
+      {/* Categories */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Categorías</CardTitle>
-              <CardDescription>Organiza tus hábitos por categorías personalizadas</CardDescription>
+              <CardDescription>Organiza tus hábitos por categorías</CardDescription>
             </div>
             <Dialog open={isCreateCategoryOpen} onOpenChange={setIsCreateCategoryOpen}>
               <DialogTrigger asChild>
@@ -256,16 +316,13 @@ export function HabitsView() {
               <DialogContent className="sm:max-w-[400px]">
                 <DialogHeader>
                   <DialogTitle>Crear Nueva Categoría</DialogTitle>
-                  <DialogDescription>
-                    Crea una categoría personalizada para organizar tus hábitos.
-                  </DialogDescription>
+                  <DialogDescription>Crea una categoría para organizar tus hábitos.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="categoryName">Nombre de la categoría</Label>
+                    <Label>Nombre</Label>
                     <Input
-                      id="categoryName"
-                      placeholder="Ej: Finanzas, Creatividad, Social..."
+                      placeholder="Ej: Finanzas, Creatividad..."
                       value={newCategory.name}
                       onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
                     />
@@ -273,15 +330,13 @@ export function HabitsView() {
                   <div className="grid gap-2">
                     <Label>Icono</Label>
                     <div className="flex flex-wrap gap-2">
-                      {["📁", "💼", "🎨", "🏠", "💰", "🤝", "🎮", "✈️", "🍎", "💡", "🔧", "📱"].map((icon) => (
+                      {["📁", "💼", "🎨", "🏠", "💰", "🤝", "🎮", "✈️", "🍎", "💡"].map((icon) => (
                         <button
                           key={icon}
                           type="button"
                           className={cn(
                             "flex size-10 items-center justify-center rounded-lg border text-xl transition-colors",
-                            newCategory.icon === icon
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:bg-secondary"
+                            newCategory.icon === icon ? "border-primary bg-primary/10" : "border-border hover:bg-secondary"
                           )}
                           onClick={() => setNewCategory({ ...newCategory, icon })}
                         >
@@ -299,9 +354,7 @@ export function HabitsView() {
                           type="button"
                           className={cn(
                             "size-8 rounded-full border-2 transition-transform",
-                            newCategory.color === color
-                              ? "scale-110 border-foreground"
-                              : "border-transparent hover:scale-105"
+                            newCategory.color === color ? "scale-110 border-foreground" : "border-transparent hover:scale-105"
                           )}
                           style={{ backgroundColor: color }}
                           onClick={() => setNewCategory({ ...newCategory, color })}
@@ -311,12 +364,8 @@ export function HabitsView() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateCategoryOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCreateCategory} disabled={!newCategory.name}>
-                    Crear Categoría
-                  </Button>
+                  <Button variant="outline" onClick={() => setIsCreateCategoryOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleCreateCategory} disabled={!newCategory.name}>Crear</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -324,34 +373,29 @@ export function HabitsView() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <div
-                key={category.id}
-                className="group flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-secondary"
-              >
-                <span
-                  className="size-3 rounded-full"
-                  style={{ backgroundColor: category.color }}
-                />
-                <span>{category.icon}</span>
-                <span>{category.name}</span>
-                <span className="text-muted-foreground">
-                  ({habits.filter(h => h.category === category.name).length})
-                </span>
-                <button
-                  type="button"
-                  className="ml-1 hidden size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive hover:text-destructive-foreground group-hover:flex"
-                  onClick={() => handleDeleteCategory(category.id)}
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
-            ))}
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tenés categorías todavía. Creá una para organizar tus hábitos.</p>
+            ) : (
+              categories.map((category) => (
+                <div key={category.id} className="group flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-secondary">
+                  <span className="size-3 rounded-full" style={{ backgroundColor: category.color }} />
+                  <span>{category.icon}</span>
+                  <span>{category.name}</span>
+                  <button
+                    type="button"
+                    className="ml-1 hidden size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive hover:text-destructive-foreground group-hover:flex"
+                    onClick={() => handleDeleteCategory(category.id)}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Main Content */}
+      {/* Habits */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -369,25 +413,21 @@ export function HabitsView() {
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>Crear Nuevo Hábito</DialogTitle>
-                  <DialogDescription>
-                    Define un nuevo hábito personalizado para incorporar a tu rutina.
-                  </DialogDescription>
+                  <DialogDescription>Define un nuevo hábito para tu rutina.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Nombre del hábito</Label>
+                    <Label>Nombre del hábito *</Label>
                     <Input
-                      id="name"
                       placeholder="Ej: Meditar 10 minutos"
                       value={newHabit.name}
                       onChange={(e) => setNewHabit({ ...newHabit, name: e.target.value })}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="description">Descripción (opcional)</Label>
+                    <Label>Descripción (opcional)</Label>
                     <Textarea
-                      id="description"
-                      placeholder="Describe tu hábito y por qué es importante para ti..."
+                      placeholder="¿Por qué es importante este hábito para ti?"
                       value={newHabit.description}
                       onChange={(e) => setNewHabit({ ...newHabit, description: e.target.value })}
                       rows={2}
@@ -402,9 +442,7 @@ export function HabitsView() {
                           type="button"
                           className={cn(
                             "flex size-10 items-center justify-center rounded-lg border text-xl transition-colors",
-                            newHabit.icon === icon
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:bg-secondary"
+                            newHabit.icon === icon ? "border-primary bg-primary/10" : "border-border hover:bg-secondary"
                           )}
                           onClick={() => setNewHabit({ ...newHabit, icon })}
                         >
@@ -414,79 +452,45 @@ export function HabitsView() {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="category">Categoría</Label>
+                    <Label>Color</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {colorOptions.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={cn(
+                            "size-8 rounded-full border-2 transition-transform",
+                            newHabit.color === color ? "scale-110 border-foreground" : "border-transparent hover:scale-105"
+                          )}
+                          style={{ backgroundColor: color }}
+                          onClick={() => setNewHabit({ ...newHabit, color })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Frecuencia</Label>
                     <Select
-                      value={newHabit.category}
-                      onValueChange={(value) => setNewHabit({ ...newHabit, category: value })}
+                      value={newHabit.frequency}
+                      onValueChange={(value) => setNewHabit({ ...newHabit, frequency: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona una categoría" />
+                        <SelectValue placeholder="Frecuencia" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.name}>
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="size-2 rounded-full"
-                                  style={{ backgroundColor: category.color }}
-                                />
-                                {category.icon} {category.name}
-                              </span>
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="daily">Diario</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="custom">Personalizado</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="frequency">Frecuencia</Label>
-                      <Select
-                        value={newHabit.frequency}
-                        onValueChange={(value) => setNewHabit({ ...newHabit, frequency: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Frecuencia" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="Diario">Diario</SelectItem>
-                            <SelectItem value="Días laborales">Días laborales</SelectItem>
-                            <SelectItem value="Fines de semana">Fines de semana</SelectItem>
-                            <SelectItem value="3x semana">3x semana</SelectItem>
-                            <SelectItem value="2x semana">2x semana</SelectItem>
-                            <SelectItem value="Semanal">Semanal</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="time">Hora preferida</Label>
-                      <Input
-                        id="time"
-                        type="time"
-                        value={newHabit.time}
-                        onChange={(e) => setNewHabit({ ...newHabit, time: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="goal">Meta (opcional)</Label>
-                    <Input
-                      id="goal"
-                      placeholder="Ej: Completar 30 días seguidos"
-                      value={newHabit.goal}
-                      onChange={(e) => setNewHabit({ ...newHabit, goal: e.target.value })}
-                    />
-                  </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateHabitOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCreateHabit} disabled={!newHabit.name || !newHabit.category}>
-                    Crear Hábito
+                  <Button variant="outline" onClick={() => setIsCreateHabitOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleCreateHabit} disabled={!newHabit.name || saving}>
+                    {saving ? <Loader2 className="size-4 animate-spin" /> : "Crear Hábito"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -494,30 +498,11 @@ export function HabitsView() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Category Filter */}
-          <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mb-6">
-            <TabsList className="flex-wrap h-auto gap-1">
-              <TabsTrigger value="Todos">Todos</TabsTrigger>
-              {categories.map((category) => (
-                <TabsTrigger key={category.id} value={category.name} className="gap-1.5">
-                  <span
-                    className="size-2 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  />
-                  {category.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          {/* Habits Grid */}
-          {filteredHabits.length === 0 ? (
+          {habits.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="text-4xl mb-4">🎯</div>
-              <h3 className="font-medium text-lg mb-2">No hay hábitos en esta categoría</h3>
-              <p className="text-muted-foreground mb-4">
-                Crea tu primer hábito para comenzar tu transformación
-              </p>
+              <h3 className="font-medium text-lg mb-2">No tenés hábitos todavía</h3>
+              <p className="text-muted-foreground mb-4">Creá tu primer hábito para comenzar</p>
               <Button onClick={() => setIsCreateHabitOpen(true)}>
                 <Plus data-icon="inline-start" />
                 Crear Hábito
@@ -525,50 +510,47 @@ export function HabitsView() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {filteredHabits.map((habit) => (
-                <Card key={habit.id} className={cn("relative transition-all", habit.completed && "bg-secondary/30")}>
+              {habits.map((habit) => (
+                <Card key={habit.id} className={cn("relative transition-all", habit.completedToday && "bg-secondary/30")}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-4">
                       <button
                         type="button"
                         className={cn(
                           "flex size-12 shrink-0 items-center justify-center rounded-lg text-2xl transition-all",
-                          habit.completed 
-                            ? "bg-primary text-primary-foreground" 
+                          habit.completedToday
+                            ? "bg-primary text-primary-foreground"
                             : "bg-secondary hover:bg-secondary/80"
                         )}
-                        onClick={() => handleToggleComplete(habit.id)}
+                        style={!habit.completedToday ? { borderLeft: `3px solid ${habit.color}` } : {}}
+                        onClick={() => handleToggleComplete(habit)}
                       >
-                        {habit.completed ? <Check className="size-6" /> : habit.icon}
+                        {habit.completedToday ? <Check className="size-6" /> : (habit.icon || "🎯")}
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h3 className={cn("font-medium truncate", habit.completed && "line-through text-muted-foreground")}>
+                          <h3 className={cn("font-medium truncate", habit.completedToday && "line-through text-muted-foreground")}>
                             {habit.name}
                           </h3>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="size-8 p-0">
                                 <MoreVertical className="size-4" />
-                                <span className="sr-only">Opciones</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuGroup>
-                                <DropdownMenuItem onClick={() => handleEditHabit(habit)}>
+                                <DropdownMenuItem onClick={() => { setEditingHabit(habit); setIsEditHabitOpen(true) }}>
                                   <Pencil data-icon="inline-start" />
                                   Editar
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleToggleComplete(habit.id)}>
+                                <DropdownMenuItem onClick={() => handleToggleComplete(habit)}>
                                   <Check data-icon="inline-start" />
-                                  {habit.completed ? "Desmarcar" : "Completar"}
+                                  {habit.completedToday ? "Desmarcar" : "Completar"}
                                 </DropdownMenuItem>
                               </DropdownMenuGroup>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => handleDeleteHabit(habit.id)}
-                              >
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteHabit(habit.id)}>
                                 <Trash2 data-icon="inline-start" />
                                 Eliminar
                               </DropdownMenuItem>
@@ -579,30 +561,17 @@ export function HabitsView() {
                           <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">{habit.description}</p>
                         )}
                         <div className="flex items-center gap-2 mt-2">
-                          <Badge 
-                            variant="outline" 
-                            style={{ borderColor: getCategoryColor(habit.category), color: getCategoryColor(habit.category) }}
-                          >
-                            {habit.category}
+                          <Badge variant="secondary">{habit.frequency === "daily" ? "Diario" : habit.frequency === "weekly" ? "Semanal" : "Personalizado"}</Badge>
+                          <Badge variant="outline" style={{ borderColor: habit.color, color: habit.color }}>
+                            {habit.completedToday ? "✓ Completado" : "Pendiente"}
                           </Badge>
-                          <Badge variant="secondary">{habit.frequency}</Badge>
-                        </div>
-                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Flame className="size-3 text-accent" />
-                            {habit.streak} días
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="size-3" />
-                            {habit.time}
-                          </span>
                         </div>
                         <div className="mt-3">
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Progreso mensual</span>
-                            <span className="font-medium">{habit.progress}%</span>
+                            <span className="text-muted-foreground">Hoy</span>
+                            <span className="font-medium">{habit.completedToday ? "100%" : "0%"}</span>
                           </div>
-                          <Progress value={habit.progress} className="h-2" />
+                          <Progress value={habit.completedToday ? 100 : 0} className="h-2" />
                         </div>
                       </div>
                     </div>
@@ -614,30 +583,26 @@ export function HabitsView() {
         </CardContent>
       </Card>
 
-      {/* Edit Habit Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={isEditHabitOpen} onOpenChange={setIsEditHabitOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Hábito</DialogTitle>
-            <DialogDescription>
-              Modifica los detalles de tu hábito.
-            </DialogDescription>
+            <DialogDescription>Modificá los detalles de tu hábito.</DialogDescription>
           </DialogHeader>
           {editingHabit && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="editName">Nombre del hábito</Label>
+                <Label>Nombre</Label>
                 <Input
-                  id="editName"
                   value={editingHabit.name}
                   onChange={(e) => setEditingHabit({ ...editingHabit, name: e.target.value })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editDescription">Descripción</Label>
+                <Label>Descripción</Label>
                 <Textarea
-                  id="editDescription"
-                  value={editingHabit.description}
+                  value={editingHabit.description ?? ""}
                   onChange={(e) => setEditingHabit({ ...editingHabit, description: e.target.value })}
                   rows={2}
                 />
@@ -651,9 +616,7 @@ export function HabitsView() {
                       type="button"
                       className={cn(
                         "flex size-10 items-center justify-center rounded-lg border text-xl transition-colors",
-                        editingHabit.icon === icon
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:bg-secondary"
+                        editingHabit.icon === icon ? "border-primary bg-primary/10" : "border-border hover:bg-secondary"
                       )}
                       onClick={() => setEditingHabit({ ...editingHabit, icon })}
                     >
@@ -663,71 +626,44 @@ export function HabitsView() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="editCategory">Categoría</Label>
+                <Label>Color</Label>
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={cn(
+                        "size-8 rounded-full border-2 transition-transform",
+                        editingHabit.color === color ? "scale-110 border-foreground" : "border-transparent hover:scale-105"
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setEditingHabit({ ...editingHabit, color })}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Frecuencia</Label>
                 <Select
-                  value={editingHabit.category}
-                  onValueChange={(value) => setEditingHabit({ ...editingHabit, category: value })}
+                  value={editingHabit.frequency}
+                  onValueChange={(value) => setEditingHabit({ ...editingHabit, frequency: value })}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
-                          <span className="flex items-center gap-2">
-                            <span
-                              className="size-2 rounded-full"
-                              style={{ backgroundColor: category.color }}
-                            />
-                            {category.icon} {category.name}
-                          </span>
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="daily">Diario</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="custom">Personalizado</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="editFrequency">Frecuencia</Label>
-                  <Select
-                    value={editingHabit.frequency}
-                    onValueChange={(value) => setEditingHabit({ ...editingHabit, frequency: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="Diario">Diario</SelectItem>
-                        <SelectItem value="Días laborales">Días laborales</SelectItem>
-                        <SelectItem value="Fines de semana">Fines de semana</SelectItem>
-                        <SelectItem value="3x semana">3x semana</SelectItem>
-                        <SelectItem value="2x semana">2x semana</SelectItem>
-                        <SelectItem value="Semanal">Semanal</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="editTime">Hora preferida</Label>
-                  <Input
-                    id="editTime"
-                    type="time"
-                    value={editingHabit.time}
-                    onChange={(e) => setEditingHabit({ ...editingHabit, time: e.target.value })}
-                  />
-                </div>
-              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditHabitOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveEdit}>
-              Guardar Cambios
+            <Button variant="outline" onClick={() => setIsEditHabitOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : "Guardar Cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>

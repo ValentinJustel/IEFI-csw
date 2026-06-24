@@ -1,39 +1,27 @@
-import { MongoClient, type Db } from "mongodb"
+// lib/mongodb.ts — sin cambios en la lógica, solo asegurate que getDb() reutilice la misma instancia
+import { MongoClient, type Db } from "mongodb";
 
-const uri = process.env.MONGODB_URI
+const uri = process.env.MONGODB_URI!;
+const dbName = process.env.MONGODB_DB || "habitly";
 
-if (!uri) {
-  throw new Error(
-    "Falta la variable de entorno MONGODB_URI. Añádela en la configuración del proyecto.",
-  )
-}
-
-const dbName = process.env.MONGODB_DB || "habitly"
-
-// Reutilizamos la conexión entre recargas en desarrollo para evitar
-// agotar el límite de conexiones de MongoDB.
-let client: MongoClient
-let clientPromise: Promise<MongoClient>
+let clientPromise: Promise<MongoClient>;
 
 declare global {
-  // eslint-disable-next-line no-var
-  var _mongoClientPromise: Promise<MongoClient> | undefined
+  var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
 if (process.env.NODE_ENV === "development") {
   if (!global._mongoClientPromise) {
-    client = new MongoClient(uri)
-    global._mongoClientPromise = client.connect()
+    global._mongoClientPromise = new MongoClient(uri).connect();
   }
-  clientPromise = global._mongoClientPromise
+  clientPromise = global._mongoClientPromise;
 } else {
-  client = new MongoClient(uri)
-  clientPromise = client.connect()
+  clientPromise = new MongoClient(uri).connect();
 }
 
 export async function getDb(): Promise<Db> {
-  const connectedClient = await clientPromise
-  return connectedClient.db(dbName)
+  const client = await clientPromise;
+  return client.db(dbName);
 }
 
-export default clientPromise
+export default clientPromise;

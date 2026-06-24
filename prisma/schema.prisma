@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+// ─── Better Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @map("_id") // ← sin @default(auto()) y sin @db.ObjectId
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Perfil extra
+  bio           String?
+  timezone      String?   @default("UTC")
+
+  // Relaciones Better Auth
+  sessions      Session[]
+  accounts      Account[]
+
+  // Relaciones de la app
+  habits        Habit[]
+  reminders     Reminder[]
+  categories    Category[]
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  accountId    String
+  providerId   String
+  userId       String    @db.ObjectId
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+model Habit {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   // ← sacá @db.ObjectId
+  name        String
+  description String?
+  color       String   @default("#6366f1")
+  icon        String?
+  frequency   String   @default("daily")
+  targetDays  Int[]    @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracking  Tracking[]
+  reminders Reminder[]
+}
+
+model Tracking {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  habitId     String   @db.ObjectId
+  userId      String   // ← sacá @db.ObjectId
+  completedAt DateTime @default(now())
+  note        String?
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, completedAt])
+}
+
+model Reminder {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   // ← sacá @db.ObjectId
+  habitId   String?  @db.ObjectId
+  time      String
+  days      Int[]    @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit Habit? @relation(fields: [habitId], references: [id], onDelete: SetNull)
+}
+
+model Category {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  name      String
+  color     String   @default("#3b82f6")
+  icon      String   @default("📁")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

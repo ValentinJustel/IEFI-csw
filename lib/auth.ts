@@ -1,20 +1,22 @@
-import { betterAuth } from "better-auth"
-import { mongodbAdapter } from "better-auth/adapters/mongodb-adapter"
-import { getDb } from "@/lib/mongodb"
+import { betterAuth } from "better-auth";
+import { mongodbAdapter } from "better-auth/adapters/mongodb";
+import { getDb } from "@/lib/mongodb";
 
-const db = await getDb()
-
-const googleClientId = process.env.GOOGLE_CLIENT_ID
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const auth = betterAuth({
   appName: "Habitly",
-  database: mongodbAdapter(db),
+  baseURL: process.env.BETTER_AUTH_URL,
+
+  database: mongodbAdapter(await getDb()),
+
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
     autoSignIn: true,
   },
+
   socialProviders:
     googleClientId && googleClientSecret
       ? {
@@ -24,8 +26,32 @@ export const auth = betterAuth({
           },
         }
       : undefined,
+
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 días
-    updateAge: 60 * 60 * 24, // refrescar cada día
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
   },
-})
+
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          try {
+            const db = await getDb();
+            await db.collection("user_profiles").insertOne({
+              userId: user.id,
+              email: user.email,
+              name: user.name ?? "",
+              plan: "free",
+              onboardingDone: false,
+              createdAt: new Date(),
+            });
+            console.log(`[Auth] Perfil creado para: ${user.email}`);
+          } catch (error) {
+            console.error("[Auth] Error al crear perfil:", error);
+          }
+        },
+      },
+    },
+  },
+});

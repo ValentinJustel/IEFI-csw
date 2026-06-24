@@ -1,35 +1,16 @@
 "use client"
 
-import { useState } from "react"
 import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarInset,
-  SidebarTrigger,
+  SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
+  SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarGroup,
+  SidebarGroupLabel, SidebarGroupContent, SidebarInset, SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import {
-  LayoutDashboard,
-  Target,
-  Bell,
-  Users,
-  BarChart3,
-  Settings,
-  LogOut,
-  Sparkles,
-} from "lucide-react"
+import { LayoutDashboard, Target, Bell, Users, BarChart3, Settings, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "@/lib/auth-client"
 
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -43,12 +24,15 @@ const secondaryItems = [
   { title: "Configuración", href: "/dashboard/settings", icon: Settings },
 ]
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+function getInitials(name?: string | null) {
+  if (!name) return "?"
+  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const user = session?.user
 
   return (
     <SidebarProvider>
@@ -63,9 +47,7 @@ export default function DashboardLayout({
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">Habitly</span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      Gestión de Hábitos
-                    </span>
+                    <span className="truncate text-xs text-muted-foreground">Gestión de Hábitos</span>
                   </div>
                 </Link>
               </SidebarMenuButton>
@@ -80,11 +62,7 @@ export default function DashboardLayout({
               <SidebarMenu>
                 {navItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.href}
-                      tooltip={item.title}
-                    >
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
                       <Link href={item.href}>
                         <item.icon />
                         <span>{item.title}</span>
@@ -102,11 +80,7 @@ export default function DashboardLayout({
               <SidebarMenu>
                 {secondaryItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.href}
-                      tooltip={item.title}
-                    >
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
                       <Link href={item.href}>
                         <item.icon />
                         <span>{item.title}</span>
@@ -124,14 +98,12 @@ export default function DashboardLayout({
             <SidebarMenuItem>
               <SidebarMenuButton size="lg">
                 <Avatar className="size-8">
-                  <AvatarImage src="/avatars/user.jpg" alt="Usuario" />
-                  <AvatarFallback>MG</AvatarFallback>
+                  <AvatarImage src={user?.image ?? ""} alt={user?.name ?? "Usuario"} />
+                  <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">María García</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    Plan Pro
-                  </span>
+                  <span className="truncate font-semibold">{user?.name ?? "..."}</span>
+                  <span className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -145,8 +117,8 @@ export default function DashboardLayout({
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="flex flex-1 items-center justify-between">
             <h1 className="text-lg font-semibold">
-              {navItems.find((item) => item.href === pathname)?.title ||
-                secondaryItems.find((item) => item.href === pathname)?.title ||
+              {navItems.find((i) => i.href === pathname)?.title ||
+                secondaryItems.find((i) => i.href === pathname)?.title ||
                 "Dashboard"}
             </h1>
           </div>

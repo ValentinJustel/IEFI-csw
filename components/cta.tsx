@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link"; // Asegúrate de importar Link
 
 export function CTA() {
   return (
@@ -16,20 +17,17 @@ export function CTA() {
             con Habitly. Tu mejor versión te está esperando.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button
-              size="lg"
-              className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-8 py-6 gap-2 cursor-pointer"
-            >
-              Comenzar gratis
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 text-lg px-8 py-6 cursor-pointer"
-            >
-              Hablar con ventas
-            </Button>
+            {/* Botón envuelto en Link para redirigir al registro */}
+            <Link href="/register">
+              <Button
+                size="lg"
+                className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-8 py-6 gap-2 cursor-pointer"
+              >
+                Comenzar gratis
+                <ArrowRight className="w-5 h-5" />
+              </Button>
+            </Link>
+            
           </div>
         </div>
       </div>
