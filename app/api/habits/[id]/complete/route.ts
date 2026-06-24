@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) { // Modificado el tipo a Promise
   const { userId, error } = await requireAuth()
   if (error) return error
 
-  const { id: habitId } = params
+  // SOLUCIÓN AQUÍ: Le agregamos el await
+  const { id: habitId } = await params 
 
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
@@ -26,11 +27,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) { // Modificado el tipo a Promise
   const { userId, error } = await requireAuth()
   if (error) return error
 
-  const { id: habitId } = params
+  // SOLUCIÓN AQUÍ: Le agregamos el await
+  const { id: habitId } = await params
 
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)

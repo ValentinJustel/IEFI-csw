@@ -11,20 +11,43 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { signUp } from "@/lib/auth-client"
 
-function HabitlyLogo({ inverted = false }: { inverted?: boolean }) {
-  const textColor = inverted ? "text-primary-foreground" : "text-foreground"
-  const accentColor = inverted ? "bg-primary-foreground" : "bg-accent"
-  const dotColor = inverted ? "bg-primary-foreground/30" : "bg-accent/30"
+// 💎 Logo orgánico integrado y agrandado idéntico al Login
+function HabitlyLogo({ inverted = false, className = "" }: { inverted?: boolean; className?: string }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="relative size-7 flex items-end justify-center gap-[3px]">
-        <span className={`w-[5px] h-3 rounded-full ${dotColor}`} />
-        <span className={`w-[5px] h-5 rounded-full ${accentColor}`} />
-        <span className={`w-[5px] h-4 rounded-full ${dotColor}`} />
-        <span className={`w-[5px] h-6 rounded-full ${accentColor}`} />
-      </div>
-      <span className={`text-base font-semibold tracking-tight ${textColor}`}>Habitly</span>
-    </div>
+    <Link href="/" className={`flex items-center gap-3 transition-transform hover:scale-[1.02] duration-200 ${className}`}>
+      <svg
+        width={38}
+        height={38}
+        viewBox="0 0 100 100"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          <linearGradient id="registerLogoGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="50%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#ec4899" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M25 20C25 14.4772 29.4772 10 35 10C40.5228 10 45 14.4772 45 20V45C45 45 35 45 30 50C25 55 25 65 25 80C25 85.5228 20.5228 90 15 90C9.47715 90 5 85.5228 5 80C5 55 15 20 25 20Z"
+          fill="url(#registerLogoGradient)"
+          opacity="0.85"
+        />
+        <path
+          d="M75 80C75 85.5228 70.5228 90 65 90C59.4772 90 55 85.5228 55 80V50C55 40 68 35 75 45C82 55 80 68 70 72C60 76 50 65 50 50V20C50 14.4772 54.4772 10 60 10C65.5228 10 70 14.4772 70 20C70 40 85 45 91 55C97 65 95 80 75 80Z"
+          fill="url(#registerLogoGradient)"
+        />
+        <circle cx="50" cy="22" r="6" fill="#ec4899" />
+      </svg>
+      <span className={`text-2xl font-bold tracking-tight ${
+        inverted 
+          ? "text-white" 
+          : "bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent"
+      }`}>
+        Habitly
+      </span>
+    </Link>
   )
 }
 
@@ -105,7 +128,9 @@ export default function RegisterPage() {
       <aside aria-hidden="true" className="hidden lg:flex lg:w-[46%] xl:w-[44%] relative overflow-hidden flex-col justify-between p-12" style={{ backgroundColor: "oklch(0.25 0.02 30)" }}>
         <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle, oklch(1 0 0 / 0.06) 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         <div className="pointer-events-none absolute -top-20 -right-20 size-64 rounded-full blur-3xl" style={{ backgroundColor: "oklch(0.65 0.15 25 / 0.15)" }} />
-        <HabitlyLogo inverted />
+        
+        <HabitlyLogo inverted className="w-fit" />
+
         <div className="relative space-y-10">
           <div className="space-y-3">
             <span className="inline-block text-[11px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full" style={{ backgroundColor: "oklch(0.65 0.15 25 / 0.18)", color: "oklch(0.65 0.15 25)" }}>Empieza gratis hoy</span>
@@ -132,7 +157,7 @@ export default function RegisterPage() {
 
       <section className="flex-1 flex flex-col">
         <div className="lg:hidden flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-          <HabitlyLogo />
+          <HabitlyLogo className="w-fit" />
           <Link href="/login" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Iniciar sesión</Link>
         </div>
 
@@ -200,7 +225,7 @@ export default function RegisterPage() {
 
               <Button type="submit" disabled={loading} className="w-full h-10 font-medium bg-accent hover:bg-accent/90 text-accent-foreground disabled:opacity-60">
                 {loading ? "Creando cuenta..." : "Crear cuenta"}
-                {!loading && <ArrowRight data-icon="inline-end" />}
+                {!loading && <ArrowRight className="ml-2 size-4" />}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground/60 leading-relaxed">

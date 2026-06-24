@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,8 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { User, Bell, Palette, Shield, Download, Check } from "lucide-react"
-import { useSession } from "@/lib/auth-client"
+import { User, Bell, Palette, Shield, Download, Check, LogOut, KeyRound } from "lucide-react"
+// Corregido el import destructurado basándonos en el error de la imagen "image_e92f03.png"
+// Reemplaza la línea 16 por esta:
+import { useSession, signOut, auth } from "@/lib/auth-client";
 
 function getInitials(name?: string | null) {
   if (!name) return "?"
@@ -30,12 +33,23 @@ type Settings = {
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
   const { data: session } = useSession()
   const user = session?.user
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  
+  // Estados para el cambio de contraseña
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+
   const [settings, setSettings] = useState<Settings>({
     name: "",
     email: "",
@@ -51,10 +65,30 @@ export default function SettingsPage() {
     fetch("/api/user/settings")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.error) setSettings(data)
+        if (!data.error) {
+          setSettings({
+            ...data,
+            name: data.name || user?.name || ""
+          })
+        }
+      })
+      .catch(() => {
+        if (user) setSettings(s => ({ ...s, name: user.name || "", email: user.email || "" }))
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [user])
+
+  // Función para cerrar sesión con auth-client
+  async function handleSignOut() {
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push("/")
+          router.refresh()
+        },
+      },
+    })
+  }
 
   async function saveProfile() {
     setSaving(true)
@@ -66,6 +100,51 @@ export default function SettingsPage() {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  // Cambio de contraseña usando la API nativa sin endpoints manuales propensos a 404
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault()
+    setPasswordError(null)
+    setPasswordSuccess(false)
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Por favor completá todos los campos de contraseña.")
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("La nueva contraseña y la confirmación no coinciden.")
+      return
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError("La nueva contraseña debe tener al menos 8 caracteres.")
+      return
+    }
+
+    setPasswordLoading(true)
+
+    // Llamada segura usando la SDK cliente
+    // ... dentro de handlePasswordChange ...
+    await auth.changePassword({
+      newPassword: newPassword,
+      currentPassword: currentPassword,
+      revokeOtherSessions: true,
+    }, {
+// ... el resto sigue igual
+      onSuccess: () => {
+        setPasswordSuccess(true)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+        setPasswordLoading(false)
+      },
+      onError: (ctx) => {
+        setPasswordError(ctx.error.message || "Error al actualizar la contraseña. Verificá tus datos.")
+        setPasswordLoading(false)
+      }
+    })
   }
 
   async function savePref(patch: Partial<Settings>) {
@@ -100,12 +179,53 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
+      
+      {/* Cabecera superior con confirmación inline protegida */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Configuración</h2>
+          <p className="text-sm text-muted-foreground">Ajusta tus preferencias y la seguridad de tu cuenta.</p>
+        </div>
+        
+        <div className="flex items-center gap-2 transition-all duration-200">
+          {!showSignOutConfirm ? (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setShowSignOutConfirm(true)} 
+              className="gap-2"
+            >
+              <LogOut className="size-4" /> Cerrar sesión
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-destructive/10 p-1 rounded-md border border-destructive/20 animate-in fade-in zoom-in-95 duration-150">
+              <span className="text-xs font-medium text-destructive px-2">¿Estás seguro?</span>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleSignOut}
+                className="h-7 px-2.5 text-xs"
+              >
+                Sí, salir
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowSignOutConfirm(false)}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-background"
+              >
+                Cancelar
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Perfil */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2"><User className="size-5" /><CardTitle>Perfil</CardTitle></div>
-          <CardDescription>Gestiona tu información personal</CardDescription>
+          <CardDescription>Gestiona tu información personal expuesta en la plataforma</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-6 mb-6">
@@ -120,12 +240,12 @@ export default function SettingsPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="name">Nombre</Label>
-              <Input id="name" value={settings.name} onChange={(e) => setSettings((s) => ({ ...s, name: e.target.value }))} />
+              <Label htmlFor="name">Nombre completo</Label>
+              <Input id="name" value={settings.name} onChange={(e) => setSettings((s) => ({ ...s, name: e.target.value }))} placeholder="Tu nombre" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={settings.email} disabled className="opacity-60" />
+              <Label htmlFor="email">Email institucional (No modificable)</Label>
+              <Input id="email" type="email" value={settings.email || user?.email || ""} disabled className="opacity-60 bg-muted" />
             </div>
             <div className="grid gap-2">
               <Label>Zona horaria</Label>
@@ -160,6 +280,82 @@ export default function SettingsPage() {
               {saved ? <><Check className="size-4 mr-1" /> Guardado</> : saving ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Privacidad y Seguridad */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2"><Shield className="size-5" /><CardTitle>Privacidad y Seguridad</CardTitle></div>
+          <CardDescription>Gestiona tus credenciales de acceso y visualización</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Perfil público</p>
+                <p className="text-sm text-muted-foreground">Permitir que otros usuarios vean tu perfil</p>
+              </div>
+              <Switch checked={settings.privacy.publicProfile} onCheckedChange={(v) => setPrivacy("publicProfile", v)} />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Mostrar en leaderboards</p>
+                <p className="text-sm text-muted-foreground">Aparecer en rankings de comunidades</p>
+              </div>
+              <Switch checked={settings.privacy.showInLeaderboards} onCheckedChange={(v) => setPrivacy("showInLeaderboards", v)} />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Autenticación de dos factores</p>
+                <p className="text-sm text-muted-foreground">Añade una capa extra de seguridad</p>
+              </div>
+              <Button variant="outline" size="sm">Configurar</Button>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Formulario de Cambio de Contraseña */}
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div className="flex items-center gap-2 font-medium text-sm text-foreground">
+              <KeyRound className="size-4" />
+              <span>Cambiar contraseña de acceso</span>
+            </div>
+            
+            {passwordError && (
+              <div className="p-3 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div className="p-3 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-md">
+                Contraseña actualizada correctamente.
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="curr-pass">Contraseña actual</Label>
+                <Input id="curr-pass" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="new-pass">Nueva contraseña</Label>
+                <Input id="new-pass" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="conf-pass">Confirmar nueva contraseña</Label>
+                <Input id="conf-pass" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repetir contraseña" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" variant="outline" disabled={passwordLoading}>
+                {passwordLoading ? "Actualizando..." : "Actualizar contraseña"}
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 
@@ -225,49 +421,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Privacidad */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2"><Shield className="size-5" /><CardTitle>Privacidad y Seguridad</CardTitle></div>
-          <CardDescription>Gestiona tu seguridad y datos</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Perfil público</p>
-                <p className="text-sm text-muted-foreground">Permitir que otros usuarios vean tu perfil</p>
-              </div>
-              <Switch checked={settings.privacy.publicProfile} onCheckedChange={(v) => setPrivacy("publicProfile", v)} />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Mostrar en leaderboards</p>
-                <p className="text-sm text-muted-foreground">Aparecer en rankings de comunidades</p>
-              </div>
-              <Switch checked={settings.privacy.showInLeaderboards} onCheckedChange={(v) => setPrivacy("showInLeaderboards", v)} />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Autenticación de dos factores</p>
-                <p className="text-sm text-muted-foreground">Añade una capa extra de seguridad</p>
-              </div>
-              <Button variant="outline" size="sm">Configurar</Button>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Cambiar contraseña</p>
-                <p className="text-sm text-muted-foreground">Actualiza tu contraseña de acceso</p>
-              </div>
-              <Button variant="outline" size="sm">Cambiar</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Exportar */}
       <Card>
         <CardHeader>
@@ -291,7 +444,7 @@ export default function SettingsPage() {
           <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
           <CardDescription>Acciones irreversibles en tu cuenta</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Eliminar cuenta</p>

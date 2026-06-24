@@ -7,10 +7,44 @@ import {
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { LayoutDashboard, Target, Bell, Users, BarChart3, Settings, Sparkles } from "lucide-react"
+import { LayoutDashboard, Target, Bell, Users, BarChart3, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "@/lib/auth-client"
+
+// 💎 Logo orgánico integrado para mantener la identidad visual en el dashboard
+function HabitlyIcon() {
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg">
+      <svg
+        width={26}
+        height={26}
+        viewBox="0 0 100 100"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="transition-transform duration-200 group-hover:scale-[1.05]"
+      >
+        <defs>
+          <linearGradient id="dashboardLogoGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="50%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#ec4899" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M25 20C25 14.4772 29.4772 10 35 10C40.5228 10 45 14.4772 45 20V45C45 45 35 45 30 50C25 55 25 65 25 80C25 85.5228 20.5228 90 15 90C9.47715 90 5 85.5228 5 80C5 55 15 20 25 20Z"
+          fill="url(#dashboardLogoGradient)"
+          opacity="0.85"
+        />
+        <path
+          d="M75 80C75 85.5228 70.5228 90 65 90C59.4772 90 55 85.5228 55 80V50C55 40 68 35 75 45C82 55 80 68 70 72C60 76 50 65 50 50V20C50 14.4772 54.4772 10 60 10C65.5228 10 70 14.4772 70 20C70 40 85 45 91 55C97 65 95 80 75 80Z"
+          fill="url(#dashboardLogoGradient)"
+        />
+        <circle cx="50" cy="22" r="6" fill="#ec4899" />
+      </svg>
+    </div>
+  )
+}
 
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -40,13 +74,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
+              <SidebarMenuButton size="lg" asChild className="group">
                 <Link href="/dashboard">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Sparkles className="size-4" />
-                  </div>
+                  {/* 🚀 Logo orgánico adaptado */}
+                  <HabitlyIcon />
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Habitly</span>
+                    <span className="truncate font-semibold bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent">
+                      Habitly
+                    </span>
                     <span className="truncate text-xs text-muted-foreground">Gestión de Hábitos</span>
                   </div>
                 </Link>

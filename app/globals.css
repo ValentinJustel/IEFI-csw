@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+  scroll-behavior: smooth;
+  /* Opcional: si tienes un header fijo que tape las secciones al scrollear, puedes agregar esto: */
+  scroll-padding-top: 80px; 
+}
+
 :root {
   --background: oklch(0.97 0.005 85);
   --foreground: oklch(0.2 0.02 30);

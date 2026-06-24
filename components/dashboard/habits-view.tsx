@@ -51,7 +51,7 @@ interface Habit {
   isActive: boolean
   createdAt: string
   completedToday: boolean
-  tracking: { id: string; completedAt: string }[]
+  trackings?: { id: string; completedAt: string }[] // Cambiado a plural para alinearse con Prisma
 }
 
 interface Category {
@@ -96,33 +96,62 @@ export function HabitsView() {
 
   // ─── Fetch ────────────────────────────────────────────────────────────────
 
+  // ... dentro de HabitsView ...
+
   async function fetchHabits() {
     try {
       const res = await fetch("/api/habits")
-      if (!res.ok) throw new Error("Error al cargar hábitos")
+      if (!res.ok) {
+        console.error("Respuesta no exitosa de /api/habits")
+        return
+      }
       const data = await res.json()
-      setHabits(data)
+      if (!Array.isArray(data)) return
+
+      const todayStr = new Date().toISOString().split('T')[0]
+
+      const processedHabits = data.map((habit: any) => {
+        const completedToday = habit.tracking?.some((t: any) => {
+          const trackingDateStr = new Date(t.completedAt).toISOString().split('T')[0]
+          return trackingDateStr === todayStr
+        }) || false
+
+        return {
+          ...habit,
+          completedToday
+        }
+      })
+
+      setHabits(processedHabits)
     } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
+      console.error("Error en fetchHabits frontend:", err)
     }
   }
 
   async function fetchCategories() {
     try {
       const res = await fetch("/api/categories")
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        console.error("Respuesta no exitosa de /api/categories")
+        return
+      }
       const data = await res.json()
-      setCategories(data)
+      if (Array.isArray(data)) {
+        setCategories(data)
+      }
     } catch (err) {
-      console.error(err)
+      console.error("Error en fetchCategories frontend:", err)
     }
   }
 
+  // Sincronizamos la carga inicial garantizando que loading pase a false pase lo que pase
   useEffect(() => {
-    fetchHabits()
-    fetchCategories()
+    async function loadDashboardData() {
+      setLoading(true)
+      await Promise.allSettled([fetchHabits(), fetchCategories()])
+      setLoading(false) // 💎 Clave: Asegura que se apague el spinner aunque falle una API
+    }
+    loadDashboardData()
   }, [])
 
   // ─── Crear hábito ─────────────────────────────────────────────────────────
@@ -143,8 +172,10 @@ export function HabitsView() {
         }),
       })
       if (!res.ok) throw new Error("Error al crear hábito")
-      const created = await res.json()
-      setHabits([...habits, { ...created, completedToday: false, tracking: [] }])
+      
+      // Volvemos a consultar la base de datos para sincronizar todo perfectamente
+      await fetchHabits()
+      
       setNewHabit({ name: "", description: "", icon: "🎯", color: "#6366f1", category: "", frequency: "daily" })
       setIsCreateHabitOpen(false)
     } catch (err) {
@@ -190,7 +221,7 @@ export function HabitsView() {
       })
       if (!res.ok) throw new Error()
       const updated = await res.json()
-      setHabits(habits.map(h => h.id === updated.id ? { ...h, ...updated } : h))
+      setHabits(habits.map(h => h.id === updated.id ? { ...h, ...updated, completedToday: h.completedToday } : h))
       setIsEditHabitOpen(false)
       setEditingHabit(null)
     } catch (err) {
@@ -233,8 +264,10 @@ export function HabitsView() {
   }
 
   async function handleDeleteCategory(categoryId: string) {
+    // 1. Buscamos primero la categoría antes de filtrarla para tener sus datos
     const cat = categories.find(c => c.id === categoryId)
     if (!cat) return
+
     setCategories(categories.filter(c => c.id !== categoryId))
     try {
       await fetch("/api/categories", {
@@ -246,14 +279,16 @@ export function HabitsView() {
       console.error(err)
       fetchCategories()
     }
+    
+    // Ahora 'cat' ya existe y no va a dar error de compilación
     if (selectedCategory === cat.name) setSelectedCategory("Todos")
   }
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
   const totalHabits = habits.length
-  const completedToday = habits.filter(h => h.completedToday).length
-  const successRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
+  const completedTodayCount = habits.filter(h => h.completedToday).length
+  const successRate = totalHabits > 0 ? Math.round((completedTodayCount / totalHabits) * 100) : 0
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -284,7 +319,7 @@ export function HabitsView() {
             <Clock className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{completedToday}/{totalHabits}</div>
+            <div className="text-2xl font-bold">{completedTodayCount}/{totalHabits}</div>
           </CardContent>
         </Card>
         <Card>
@@ -309,7 +344,7 @@ export function HabitsView() {
             <Dialog open={isCreateCategoryOpen} onOpenChange={setIsCreateCategoryOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <FolderPlus data-icon="inline-start" />
+                  <FolderPlus className="mr-2 size-4" />
                   Nueva Categoría
                 </Button>
               </DialogTrigger>
@@ -406,7 +441,7 @@ export function HabitsView() {
             <Dialog open={isCreateHabitOpen} onOpenChange={setIsCreateHabitOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus data-icon="inline-start" />
+                  <Plus className="mr-2 size-4" />
                   Crear Hábito
                 </Button>
               </DialogTrigger>
@@ -504,7 +539,7 @@ export function HabitsView() {
               <h3 className="font-medium text-lg mb-2">No tenés hábitos todavía</h3>
               <p className="text-muted-foreground mb-4">Creá tu primer hábito para comenzar</p>
               <Button onClick={() => setIsCreateHabitOpen(true)}>
-                <Plus data-icon="inline-start" />
+                <Plus className="mr-2 size-4" />
                 Crear Hábito
               </Button>
             </div>
@@ -541,17 +576,17 @@ export function HabitsView() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuGroup>
                                 <DropdownMenuItem onClick={() => { setEditingHabit(habit); setIsEditHabitOpen(true) }}>
-                                  <Pencil data-icon="inline-start" />
+                                  <Pencil className="mr-2 size-4" />
                                   Editar
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleToggleComplete(habit)}>
-                                  <Check data-icon="inline-start" />
+                                  <Check className="mr-2 size-4" />
                                   {habit.completedToday ? "Desmarcar" : "Completar"}
                                 </DropdownMenuItem>
                               </DropdownMenuGroup>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteHabit(habit.id)}>
-                                <Trash2 data-icon="inline-start" />
+                                <Trash2 className="mr-2 size-4" />
                                 Eliminar
                               </DropdownMenuItem>
                             </DropdownMenuContent>

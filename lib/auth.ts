@@ -1,6 +1,10 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { getDb } from "@/lib/mongodb";
+import { Resend } from "resend";
+
+// Inicializamos Resend usando la variable de entorno (Configúrala en tu .env)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -15,6 +19,30 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     autoSignIn: true,
+  },
+
+  // INTEGRACIÓN DE CORREO PARA RECUPERACIÓN Y VERIFICACIÓN
+  emailVerification: {
+    enabled: true,
+    sendVerificationEmail: async (data, request) => {
+      await resend.emails.send({
+        from: "Habitly <no-responder@tudominio.com>", // Usa tu dominio verificado en Resend
+        to: data.user.email,
+        subject: "Verifica tu cuenta en Habitly",
+        html: `<p>Hola, haz clic en el siguiente enlace para verificar tu cuenta:</p><a href="${data.url}">Verificar cuenta</a>`,
+      });
+    },
+  },
+
+  forgetPassword: {
+    sendResetPasswordEmail: async (data, request) => {
+      await resend.emails.send({
+        from: "Habitly <no-responder@tudominio.com>",
+        to: data.email,
+        subject: "Recupera tu contraseña de Habitly",
+        html: `<p>Hola, haz clic en el siguiente enlace para restablecer tu contraseña:</p><a href="${data.url}">Restablecer contraseña</a>`,
+      });
+    },
   },
 
   socialProviders:

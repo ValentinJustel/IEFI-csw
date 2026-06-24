@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
+// 💎 IMPORTANTE: Asegurate de cambiar esta ruta según dónde guardaste el componente del logo
+import { HabitlyLogo } from "@/components/HabitlyLogo";
 
 const navLinks = [
   { label: "Características", href: "#features" },
@@ -19,12 +21,12 @@ export function Header() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <nav className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">H</span>
-            </div>
-            <span className="font-bold text-xl text-foreground">Habitly</span>
+          {/* Logo orgánico y dinámico */}
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <HabitlyLogo size={32} className="transition-transform group-hover:scale-105 duration-200" />
+            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-pink-500 bg-clip-text text-transparent">
+              Habitly
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -2,43 +2,53 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/session"
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+// 1. MÉTODO POST (Tu código original, está perfecto)
+export async function POST(req: NextRequest) {
   const { userId, error } = await requireAuth()
   if (error) return error
 
-  const { id } = params
-  const body = await req.json()
-  const { name, description, color, icon, frequency } = body
+  try {
+    const body = await req.json()
+    const { name, description, color, icon, frequency, categoryId } = body
 
-  const habit = await prisma.habit.updateMany({
-    where: { id, userId },
-    data: {
-      name: name?.trim(),
-      description: description?.trim() ?? null,
-      color,
-      icon,
-      frequency,
-    },
-  })
+    const newHabit = await prisma.habit.create({
+      data: {
+        userId,
+        name: name?.trim(),
+        description: description?.trim() ?? null,
+        color,
+        icon,
+        frequency,
+        categoryId, 
+      },
+    })
 
-  if (habit.count === 0) {
-    return NextResponse.json({ error: "No encontrado" }, { status: 404 })
+    return NextResponse.json(newHabit, { status: 201 })
+  } catch (err) {
+    console.error("Error en POST /api/habits:", err)
+    return NextResponse.json({ error: "Error al crear el hábito" }, { status: 500 })
   }
-
-  const updated = await prisma.habit.findUnique({ where: { id } })
-  return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+// 2. MÉTODO GET (OBLIGATORIO para que no se borren al dar F5)
+export async function GET(req: NextRequest) {
   const { userId, error } = await requireAuth()
   if (error) return error
 
-  const { id } = params
+  try {
+    const habits = await prisma.habit.findMany({
+      where: { 
+        userId,
+        isActive: { not: false }
+      },
+      include: {
+        tracking: true // 💎 SOLUCIÓN: Cambiado de 'trackings' a 'tracking' en singular
+      }
+    })
 
-  await prisma.habit.updateMany({
-    where: { id, userId },
-    data: { isActive: false },
-  })
-
-  return NextResponse.json({ ok: true })
+    return NextResponse.json(habits)
+  } catch (err) {
+    console.error("Error en GET /api/habits:", err)
+    return NextResponse.json({ error: "Error al obtener hábitos" }, { status: 500 })
+  }
 }
