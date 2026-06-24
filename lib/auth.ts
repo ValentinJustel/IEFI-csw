@@ -11,9 +11,10 @@ export const auth = betterAuth({
   appName: "Habitly",
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
-    "https://iefi-csw.vercel.app",
-    "http://localhost:3000",
-  ],
+  "https://iefi-csw.vercel.app",
+  "https://*.vercel.app",
+  "http://localhost:3000",
+],
 
   database: mongodbAdapter(db),
 
