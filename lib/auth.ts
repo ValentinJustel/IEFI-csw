@@ -8,6 +8,8 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const db = await getDb();
 
 export const auth = betterAuth({
+  database: mongodbAdapter(await getDb()),  // igual, pero...
+});
   appName: "Habitly",
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
